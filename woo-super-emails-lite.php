@@ -6,7 +6,7 @@
  * Description: Display suggested products on transactional emails sent to customers
  * Author: Boris Colombier
  * Author URI: http://wba.fr
- * Version: 1.0
+ * Version: 1.1
  * License: 
  */
 

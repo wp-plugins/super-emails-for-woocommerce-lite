@@ -31,5 +31,9 @@ At least, 2.2
 1. Order confirmation email
 
 == Changelog ==
+
+1.1
+Bug fix
+
 1.0
 Initial release
