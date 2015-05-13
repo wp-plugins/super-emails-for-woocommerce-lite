@@ -19,6 +19,10 @@ You can find more information on https://www.woosuperemails.com and get the full
 
 == Frequently Asked Questions ==
 
+= Which WooCommerce version should I have =
+
+At least, 2.2
+
 == Screenshots ==
 1. Order confirmation email
 
