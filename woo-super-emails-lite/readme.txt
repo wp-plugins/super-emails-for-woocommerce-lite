@@ -20,7 +20,7 @@ You can find more information on https://www.woosuperemails.com and get the full
 == Frequently Asked Questions ==
 
 == Screenshots ==
-
+1. Order confirmation email
 
 == Changelog ==
 1.0

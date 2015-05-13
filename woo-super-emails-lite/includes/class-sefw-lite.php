@@ -157,16 +157,16 @@ if (!class_exists('SEFWlite')) {
 	 		$this->promoted_products_data = $this->promoted_products_data[0];
 	 	}
 	 	function up_sells_getter() {
-	 		$this->max_data = $this->opt['sefw_lite_upsells_max'];
+	 		$this->max_data = 2;
 	 		$this->new_data = $this->current_product->get_upsells();
 	 	}
 	 	function cross_sells_getter() {
-	 		$this->max_data = $this->opt['sefw_lite_crosssells_max'];
+	 		$this->max_data = 2;
 	 		$this->new_data = $this->current_product->get_cross_sells();
 	 		
 	 	}
 	 	function related_products_getter() {
-	 		$this->max_data = $this->opt['sefw_lite_related_max'];
+	 		$this->max_data = 2;
 	 		$this->new_data = $this->current_product->get_related( $this->max_data );
 	 	}
 

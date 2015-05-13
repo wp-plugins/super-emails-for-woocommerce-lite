@@ -19,6 +19,16 @@ function sfew_lite_image( $id, $size, $image_id, $image_unique_id ) {
 
 function sefw_lite_email_templates( $layout_arg, $products_data ) {
 
+	$layout_arg['sefw_lite_t1_color'] = wc_light_or_dark( get_option( 'woocommerce_email_base_color', '#557da1' ), '#202020', '#ffffff' );
+	$layout_arg['sefw_lite_t1_bgcolor'] = get_option( 'woocommerce_email_base_color', '#557da1' );
+	$layout_arg['sefw_lite_t2_color'] = wc_light_or_dark( get_option( 'woocommerce_email_base_color', '#557da1' ), '#202020', '#ffffff' );
+	$layout_arg['sefw_lite_t2_bgcolor'] = get_option( 'woocommerce_email_base_color', '#557da1' );
+	$layout_arg['sefw_lite_main_background_color'] = get_option( 'woocommerce_email_background_color', '#f5f5f5' );
+	$layout_arg['sefw_lite_product_name_color'] = wc_hex_lighter( get_option( 'woocommerce_email_text_color', '#505050' ), 20 );
+	$layout_arg['sefw_lite_price_color'] = get_option( 'woocommerce_email_base_color', '#557da1' );
+	$layout_arg['sefw_lite_product_description_color'] = wc_hex_lighter( get_option( 'woocommerce_email_text_color', '#505050' ), 20 );
+	$layout_arg['sefw_lite_product_button_color'] = wc_light_or_dark( get_option( 'woocommerce_email_base_color', '#557da1' ), '#202020', '#ffffff' );
+	$layout_arg['sefw_lite_product_button_background_color'] = get_option( 'woocommerce_email_base_color', '#557da1' );
 	$structure_top = array();
 	$structure_top[] = " <!----> ";
 	$structure_top[] = sprintf('<p style="font-size: %1$s;font-weight: 300;text-align: center;color: %2$s;background-color: %3$s;padding: 15px;font-family: \'Helvetica Neue\', Helvetica, Roboto, Arial, sans-serif;margin-bottom:0; margin-top: 0px; line-height:100%%;-webkit-font-smoothing: antialiased;">%4$s</p>', $layout_arg['sefw_lite_t1_size'], $layout_arg['sefw_lite_t1_color'], $layout_arg['sefw_lite_t1_bgcolor'], $layout_arg['sefw_lite_t1_text']);
