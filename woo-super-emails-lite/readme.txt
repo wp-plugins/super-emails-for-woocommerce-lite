@@ -17,6 +17,9 @@ WooCommerce 2.2 minimum required
 
 You can find more information on https://www.woosuperemails.com and get the full version which allows you to precisely select the products you want to promote
 
+== Installation ==
+The options submenu is in the WooCommerce menu
+
 == Frequently Asked Questions ==
 
 = Which WooCommerce version should I have =
@@ -24,6 +27,7 @@ You can find more information on https://www.woosuperemails.com and get the full
 At least, 2.2
 
 == Screenshots ==
+
 1. Order confirmation email
 
 == Changelog ==
