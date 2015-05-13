@@ -49,12 +49,7 @@ function sfew_lite_settings()
                                 'empty' => false
                             ),
                             'values' => array(
-                                2 => '2',
                                 3 => '3',
-                                4 => '4',
-                                6 => '6',
-                                6 => '6',
-                                8 => '8',
                             ),
                             'hint' => __('<span>Number of products to be displayed per email</span>', 'sefw-lite'),
                         ),
@@ -68,7 +63,6 @@ function sfew_lite_settings()
                             ),
                             'values' => array(
                                 1 => '1',
-                                2 => '2',
                             ),
                             'hint' => __('<span>Display 1 or 2 rows of products per email.<br>For 2 rows, number of products must be at least 4.</span>', 'sefw-lite'),
                         ),
