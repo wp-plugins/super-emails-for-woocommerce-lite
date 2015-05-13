@@ -46,7 +46,7 @@ function sfew_lite_settings()
                             'default' => 3,
                             'validation' => array(
                                 'rule' => 'option',
-                                'empty' => false
+                                'empty' => true
                             ),
                             'values' => array(
                                 3 => '3',
@@ -59,7 +59,7 @@ function sfew_lite_settings()
                             'default' => 1,
                             'validation' => array(
                                 'rule' => 'option',
-                                'empty' => false
+                                'empty' => true
                             ),
                             'values' => array(
                                 1 => '1',
