@@ -3,27 +3,27 @@
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
  
 
-if (!class_exists('SEFWlite')) {
-	class SEFWlite {
+if (!class_exists('SEFW')) {
+	class SEFW {
 		public function __construct() {
 			
 			if ( version_compare( WOOCOMMERCE_VERSION, '2.2.0', '<' ) ) {
-				add_action( 'admin_notices', array($this, 'sefw_lite_fallback_notice' ) );
+				add_action( 'admin_notices', array($this, 'sefw_fallback_notice' ) );
 		        return;
 			}
 			// configuration
-			$this->id = 'sefw_lite';
+			$this->id = 'sefw';
 			// this is the title in WooCommerce Email settings
-			$this->title = 'Super Emails lite';
+			$this->title = 'Super Emails';
 
-			require sefw_lite_PLUGIN_PATH . '/includes/sefw_lite-structure.inc.php';
-			require sefw_lite_PLUGIN_PATH . '/includes/sefw_lite-email_templates.inc.php';
+			require sefw_PLUGIN_PATH . '/includes/wc_se-structure.inc.php';
+			require sefw_PLUGIN_PATH . '/includes/wc_se-email_templates.inc.php';
 			
 			// Add settings page
 			if (is_admin()) {
 			    add_action('admin_menu', array($this, 'add_admin_menu'));
 			    add_action('admin_init', array($this, 'admin_construct'));
-			    if (preg_match('/page=sefw-lite/i', $_SERVER['QUERY_STRING'])) {
+			    if (preg_match('/page=sefw/i', $_SERVER['QUERY_STRING'])) {
 					add_action('admin_enqueue_scripts', array($this, 'enqueue_scripts'));
 			    }
 			}
@@ -34,7 +34,7 @@ if (!class_exists('SEFWlite')) {
 			// Load options
 			$this->opt = $this->get_options();
 
-			if ( $this->opt['sefw_lite_enabled'] ) {
+			if ( $this->opt['wc_se_enabled'] ) {
 				add_action( 'woocommerce_email', array( $this, 'get_emails_list' ) );
 				add_action( 'woocommerce_email_header',  array( $this, 'get_notification_email_type' ) );
 				add_action( 'woocommerce_email_order_meta', array( $this, 'get_order_id' ), 10);
@@ -42,7 +42,7 @@ if (!class_exists('SEFWlite')) {
 			add_action( 'admin_init', array( $this, 'preview_emails' ) );
 		}
 
-		function sefw_lite_fallback_notice() {
+		function sefw_fallback_notice() {
 			echo '<div class="error"><p>WooCommerce 2.2 is required for Super Emails for WooCommerce to run, so please update to the latest stable version of WooCommerce.</p></div>';
 		}
 
@@ -57,7 +57,9 @@ if (!class_exists('SEFWlite')) {
 
 
 	 	function get_emails_list( $email ) {
+	 		$this->emails_list[$email->emails['WC_Email_Customer_Processing_Order']->heading] = 'WC_Email_Customer_Processing_Order';
 	 		$this->emails_list[$email->emails['WC_Email_Customer_Completed_Order']->heading] = 'WC_Email_Customer_Completed_Order';
+	 		$this->emails_list[$email->emails['WC_Email_Customer_Note']->heading] = 'WC_Email_Customer_Note';
 	 	}
 
 	 	public function get_notification_email_type($heading) {
@@ -66,7 +68,13 @@ if (!class_exists('SEFWlite')) {
 	 		}
 	 		$email_type = $this->emails_list[$heading];
 
-	 		if ( $this->emails_list[$heading] == 'WC_Email_Customer_Completed_Order' and  $this->opt['sefw_lite_enable_on_order_complete'] ) {
+	 		if (
+	 			( $this->emails_list[$heading] == 'WC_Email_Customer_Processing_Order' and  $this->opt['wc_se_enable_on_new_order'] ) 
+	 			or
+	 			( $this->emails_list[$heading] == 'WC_Email_Customer_Completed_Order' and  $this->opt['wc_se_enable_on_order_complete'] )
+	 			or
+	 			( $this->emails_list[$heading] == 'WC_Email_Customer_Note' and  $this->opt['wc_se_enable_on_customer_note'] ) 
+	 		) {
 	 			add_filter( 'woocommerce_email_footer_text', array( $this, 'select_products_to_add' ), 9);
 	 		}
 	 	}
@@ -74,12 +82,55 @@ if (!class_exists('SEFWlite')) {
 	 		$this->order_id = $order->id;
 	 	}
 
+
+
+	 	function embed_images( $mail ) {
+	 		foreach ($this->promoted_products_info as $key => $value) {
+	 			if ( $value['image_id'] ) {
+	 				switch($this->opt['wc_se_products_quantity'])
+	 				{
+	 				    case '2';
+	 				    	$size = 242;
+	 				    	break;
+	 				    case '3';
+	 				    case '6';
+	 				    	$size = 158;
+	 				    	break;
+	 				    case '4';
+	 				        if ( $this->opt['wc_se_number_rows'] == 1) {
+	 				        	$size = 116;
+	 				        }else{
+	 				        	$size = 242;
+	 				        }
+	 				    	break;
+	 				    case '8';
+	 				    	$size = 116;
+	 				    	break;
+	 				    default;
+	 				        $size = 242;
+	 				    	break;
+	 				}
+	 				$image_full = wp_get_attachment_image_src($value['image_id'], 'full');
+	 				$image_resized = image_get_intermediate_size($value['image_id'], array( $size, $size ));
+	 				$full_name = wp_basename($image_full[0]);
+	 				$resized_name = $image_resized['file'];
+	 				$resized_path = str_replace( $full_name, $resized_name, get_attached_file( $value['image_id']) );
+	 					
+	 				$mail->AddEmbeddedImage($resized_path, $value['image_unique_id'], get_the_title($value['image_id']));	
+	 			}
+	 		}
+	 	}
+
 	 	public function display_promotion_products( Array $promoted_products ){
 
 	 		// get promoted products data
 	 		$promoted_products_info = array();
 	 		$index = 0;
-
+	 		if ( $this->opt['wc_se_embedded_images'] and ! isset( $this->email_preview ) ) {
+	 			$embedded_images = true;
+	 		} else {
+	 			$embedded_images = false;
+	 		}
 	 		foreach ( $promoted_products as $product_id ) {
 	 			$promoted_products_info[$index]['id'] = $product_id;
 	 			if ( get_post_thumbnail_id( $product_id ) ) {
@@ -100,23 +151,26 @@ if (!class_exists('SEFWlite')) {
 	 			$promoted_products_info[$index]['description'] = $product->post->post_content;
 	 			$promoted_products_info[$index]['short_description'] = $product->post->post_excerpt;
 
-	 			if ( $this->opt['sefw_lite_product_description_short']  and  $product->post->post_excerpt) {
-	 				$promoted_products_info[$index]['description'] = wp_trim_words( $product->post->post_excerpt, $this->opt['sefw_lite_product_description_maxsize']);
+	 			if ( $this->opt['wc_se_product_description_short']  and  $product->post->post_excerpt) {
+	 				$promoted_products_info[$index]['description'] = wp_trim_words( $product->post->post_excerpt, $this->opt['wc_se_product_description_maxsize']);
 	 			}else{
-	 				$promoted_products_info[$index]['description'] = wp_trim_words( $product->post->post_content, $this->opt['sefw_lite_product_description_maxsize']);
+	 				$promoted_products_info[$index]['description'] = wp_trim_words( $product->post->post_content, $this->opt['wc_se_product_description_maxsize']);
+	 			}
+	 			if ( $embedded_images ) {
+	 				add_filter( 'phpmailer_init', array( $this, 'embed_images' ) );	
 	 			}
 	 			
 	 			$promoted_products_info[$index]['price'] = $product->get_price_html();
 	 			$index++;
 	 		}
 
-	 		$products_structure = sefw_lite_email_templates( $this->opt, $promoted_products_info );
+	 		$products_structure = sefw_email_templates($this->opt['wc_se_products_quantity'].'_'.$this->opt['wc_se_number_rows'], $this->opt, $promoted_products_info, $embedded_images	);
 	 		$this->promoted_products_info = $promoted_products_info;
 	 		$products_structure_out = array();
 	 		foreach ($products_structure as $key => $value) {
 	 			if ( is_array( $value ) ) {
 	 				$first_key = array_keys( $value )[0];
-	 				if ( $this->opt['sefw_lite_'.$first_key] ) {
+	 				if ( $this->opt['wc_se_'.$first_key] ) {
 	 					$products_structure_out[] = $value[$first_key];	
 	 				}
 	 			}else{
@@ -146,28 +200,48 @@ if (!class_exists('SEFWlite')) {
 	 		}
 	 		$this->new_data = Array();
 	 		$this->current_product = $product;
-	 		$sefw_lite_selection_orders = explode( ',', 'up_sells,cross_sells,related_products' );
+	 		$wc_se_selection_orders = explode( ',', $this->opt['wc_se_selection_order'] );
 
-	 		foreach ( $sefw_lite_selection_orders as $sefw_lite_selection_orders ){
-	 			call_user_func( array($this, $sefw_lite_selection_orders.'_getter') );
+	 		foreach ( $wc_se_selection_orders as $wc_se_selection_orders ){
+	 			call_user_func( array($this, $wc_se_selection_orders.'_getter') );
 	 			call_user_func( array($this, 'clean_data') );
 	 		}
 
-	 		$this->promoted_products_data = array_chunk( $this->promoted_products_data , 3, true );
+	 		$this->promoted_products_data = array_chunk( $this->promoted_products_data , $this->opt['wc_se_products_quantity'], true );
 	 		$this->promoted_products_data = $this->promoted_products_data[0];
 	 	}
+	 	function specific_products_getter() {
+	 		$this->max_data = 100;
+	 		$specific_products = $this->opt['wc_se_specific_ids'];
+	 		if ( count( $specific_products ) ) {
+	 			$this->new_data = explode( ',', $specific_products );	
+	 		}
+	 	}
 	 	function up_sells_getter() {
-	 		$this->max_data = 2;
+	 		$this->max_data = $this->opt['wc_se_upsells_max'];
 	 		$this->new_data = $this->current_product->get_upsells();
 	 	}
 	 	function cross_sells_getter() {
-	 		$this->max_data = 2;
+	 		$this->max_data = $this->opt['wc_se_crosssells_max'];
 	 		$this->new_data = $this->current_product->get_cross_sells();
 	 		
 	 	}
 	 	function related_products_getter() {
-	 		$this->max_data = 2;
+	 		$this->max_data = $this->opt['wc_se_related_max'];
 	 		$this->new_data = $this->current_product->get_related( $this->max_data );
+	 	}
+	 	function random_shop_getter() {
+	 		$this->max_data = $this->opt['wc_se_randomshop_max'];
+	 		$args = array(
+	 		    'posts_per_page'   => 10,
+	 		    'orderby'          => 'rand',
+	 		    'post_type'        => 'product',
+	 		    'fields'           => 'ids',
+	 		    'id__not_in'   =>  $this->promoted_products_data
+	 		); 
+
+	 		$random_products = get_posts( $args );
+	 		$this->new_data = $random_products;
 	 	}
 
 	 	function clean_data()  {
@@ -206,7 +280,7 @@ if (!class_exists('SEFWlite')) {
 	 	        foreach ($page_value['children'] as $section => $section_value) {
 	 	            foreach ($section_value['children'] as $field => $field_value) {
 	 	                if (isset($field_value[$name])) {
-	 	                    $page_options['sefw_lite_' . $field] = $field_value[$name];
+	 	                    $page_options['wc_se_' . $field] = $field_value[$name];
 	 	                }
 	 	            }
 	 	        }
@@ -301,10 +375,10 @@ if (!class_exists('SEFWlite')) {
 	 	    if (isset($submenu['woocommerce'])) {
 	 	        add_submenu_page(
 	 	            'woocommerce',
-	 	            __('Super Emails for WooCommerce', 'sefw-lite'),
-	 	            __('Super Emails lite', 'sefw-lite'),
+	 	            __('Super Emails for WooCommerce', 'sefw'),
+	 	            __('Super Emails', 'sefw'),
 	 	            'edit_posts',
-	 	            'sefw-lite',
+	 	            'sefw',
 	 	            array($this, 'set_up_admin_page')
 	 	        );
 	 	    }
@@ -312,7 +386,7 @@ if (!class_exists('SEFWlite')) {
 
 	 	function set_up_admin_page(){
 	 		// Print notices
-	 		settings_errors('sefw_lite');
+	 		settings_errors('wc_se');
 
 	 		$current_tab = isset($_GET['tab']) ? $_GET['tab'] : 'general_settings';
 	 		$current_tab = isset($this->settings[$current_tab]) ? $current_tab : 'general_settings';
@@ -340,30 +414,30 @@ if (!class_exists('SEFWlite')) {
 	 		foreach ($this->settings as $page => $page_value) {
 
 	 		    register_setting(
-	 		        'sefw_lite_opt_group_' . $page,               // Option group
+	 		        'wc_se_opt_group_' . $page,               // Option group
 	 		        'sefw_lite_options',                          // Option name
 	 		        array($this, 'options_validate')            // Sanitize
 	 		    );
 
 	 		    // Iterate sections
 	 		    foreach ($page_value['children'] as $section => $section_value) {
-	 		    	
+	 		    	//echo 'wc_se-admin-' . str_replace('_', '-', $page).PHP_EOL;
 	 		        add_settings_section(
 	 		            $section,
 	 		            $section_value['title'],
 	 		            array($this, 'render_section_info'),
-	 		            'sefw-lite-admin-' . str_replace('_', '-', $page)
+	 		            'sefw-admin-' . str_replace('_', '-', $page)
 	 		        );
 
 	 		        foreach ($section_value['children'] as $field => $field_value) {
 	 		            add_settings_field(
-	 		                'sefw_lite_' . $field,		// ID
+	 		                'wc_se_' . $field,		// ID
 	 		                $field_value['title'],	// Title 
 	 		                array($this, 'render_options_' . $field_value['type']),	// Callback
-	 		                'sefw-lite-admin-' . str_replace('_', '-', $page),	// Page
+	 		                'sefw-admin-' . str_replace('_', '-', $page),	// Page
 	 		                $section,	// Section
 	 		                array(	// Arguments
-	 		                    'name' => 'sefw_lite_' . $field,
+	 		                    'name' => 'wc_se_' . $field,
 	 		                    'options' => $this->opt,
 	 		                )
 	 		            );
@@ -382,11 +456,11 @@ if (!class_exists('SEFWlite')) {
 	    public function render_tabs($current_tab = 'general-settings')
 	    {
 	        $current_tab = preg_replace('/-/', '_', $current_tab);
-	        echo '<div class="sefw_lite_tabs_container">';
+	        echo '<div class="wc_se_tabs_container">';
 	        echo '<h2 class="nav-tab-wrapper">';
 	        foreach ($this->settings as $page => $page_value) {
 	            $class = ($page == $current_tab) ? ' nav-tab-active' : '';
-	            echo '<a class="sefw-lite-tab nav-tab'.$class.'" href="?page=sefw-lite&tab='.$page.'">'.((isset($page_value['icon']) && !empty($page_value['icon'])) ? $page_value['icon'] . '&nbsp;' : '').$page_value['title'].'</a>';
+	            echo '<a class="sefw-tab nav-tab'.$class.'" href="?page=sefw&tab='.$page.'">'.((isset($page_value['icon']) && !empty($page_value['icon'])) ? $page_value['icon'] . '&nbsp;' : '').$page_value['title'].'</a>';
 	        }
 	        echo '</h2>';
 	        echo '</div>';
@@ -427,6 +501,7 @@ if (!class_exists('SEFWlite')) {
 	 	    wp_enqueue_script( 'ajax-chosen' );
 			wp_enqueue_script( 'chosen' );
 			wp_enqueue_script( 'woocommerce_admin' );
+			wp_enqueue_script( 'iris' );
 			wp_enqueue_script( 'ajax-chosen' );
 			wp_enqueue_script( 'chosen' );
 			$params = array(
@@ -453,10 +528,10 @@ if (!class_exists('SEFWlite')) {
 			wp_enqueue_style( 'woocommerce_admin_styles', WC()->plugin_url() . '/assets/css/admin.css', array(), WC_VERSION );
  	        ?>
 
- 	            <div class="wrap woocommerce sefw-lite">
+ 	            <div class="wrap woocommerce sefw">
  	            <style>
 
- 	              .sefw-lite .product_selection_order, #sortable {
+ 	              .sefw .product_selection_order, #sortable {
  	              	list-style-type: none;
  	              	margin: 0;
  	              	padding: 0;
@@ -466,59 +541,60 @@ if (!class_exists('SEFWlite')) {
  	              	margin-top: 10px;
  	              	margin-bottom: 25px;
  	              }
- 	              .sefw-lite .product_selection_order{
+ 	              .sefw .product_selection_order{
  	              	margin-left: 25px;
  	              }
- 	              .sefw-lite .product_selection_order li, #sortable li {
+ 	              .sefw .product_selection_order li, #sortable li {
  	              	padding: 4px;
  	              	padding-top: 11px;
  	              	height: 45px;
+ 	              	cursor: move;
  	              	background: #fff;
  	              	box-sizing: border-box;
  	              	border: 1px solid #0074A2;
  	              	position: relative;
  	              }
- 	              .sefw-lite .product_selection_order li {
+ 	              .sefw .product_selection_order li {
  	              	cursor: default;
  	              	background: #fff;
  	              	border-color: #ddd;
  	              }
- 	              .sefw-lite #sortable li p{
+ 	              .sefw #sortable li p{
  	              	position: absolute;
  	              	right: 10px;
  	              	top: -6px;
  	              }
- 	              .sefw-lite li#specific_products p{
+ 	              .sefw li#specific_products p{
  	              	top: -1px;
  	              }
  	              
- 	              .sefw-lite #sortable li span {
+ 	              .sefw #sortable li span {
  	              	position: absolute;
  	              	margin-left: -1.3em;
  	              }
- 	              .sefw-lite #sortable li.ui-state-highlight {
+ 	              .sefw #sortable li.ui-state-highlight {
  	              	background: #f4f4f4;
  	              	border-style: dotted;
  	              }
- 	              .sefw-lite .product_selection_order{
+ 	              .sefw .product_selection_order{
  	              	width: 50px;
  	              }
- 	              .sefw-lite .product_selection_order li{
+ 	              .sefw .product_selection_order li{
  	              	font-size: 25px;
  	              	padding-top: 11px;
  	              	padding-left: 17px;
  	              }
- 	              .sefw-lite .sefw_lite_container .chosen-container-multi{
+ 	              .sefw .wc_se_container .chosen-container-multi{
  	              	width: calc(50% + 53px) !important;
  	              }
- 	              .sefw-lite .sefw_lite_container h3, .sefw_lite_container>h4 {
+ 	              .sefw .wc_se_container h3 {
  	              padding: 10px 0 10px 15px;
  	              border-top: 1px solid #dfdfdf;
  	              border-bottom: 1px solid #dfdfdf;
  	              background-color: #f9f9f9;
  	              margin: 0;
  	              }
- 	              .sefw-lite .sefw_lite_container {
+ 	              .sefw .wc_se_container {
  	              width: 820px;
  	              min-width: 500px;
  	              float: left;
@@ -526,25 +602,25 @@ if (!class_exists('SEFWlite')) {
  	              border-top: none;
  	              background-color: #fcfcfc;
  	              }
- 	              .woocommerce.sefw-lite .sefw_lite_container table.form-table {
+ 	              .woocommerce.sefw .wc_se_container table.form-table {
  	              margin: 10px 0 10px 25px;
  	              width: auto;
  	              }
- 	              .sefw-lite .sefw_lite_container .submit {
+ 	              .sefw .wc_se_container .submit {
  	              border-top: 1px solid #dfdfdf;
  	              padding: 15px 0 10px 15px;
  	              }
- 	              .sefw-lite .select2-container-multi .select2-choices .select2-search-field input{
+ 	              .sefw .select2-container-multi .select2-choices .select2-search-field input{
  	              	min-width: 337px;
  	              }
- 	              .sefw-lite .sefw_lite_container input[id$='size'],.sefw-lite .sefw_lite_container input[id$='id']{
+ 	              .sefw .wc_se_container input[id$='size'],.sefw .wc_se_container input[id$='id']{
  	              	width: 6em;
  	              }
- 	              .sefw-lite .sefw_lite_container #sefw_lite_t2_text{
+ 	              .sefw .wc_se_container #wc_se_t2_text{
  	              	width: 20em;
  	              	height: 7em;
  	              }
- 	              .sefw-lite .sefw_lite_container table.form-table span.help_tip, .sefw-lite .sefw_lite_container #sortable li span.help_tip{
+ 	              .sefw .wc_se_container table.form-table span.help_tip, .sefw .wc_se_container #sortable li span.help_tip{
  	              	/*display: inline-block;
  	              	width: 16px;
  	              	height: 16px;
@@ -559,50 +635,46 @@ if (!class_exists('SEFWlite')) {
  	              	font-weight: bold;
  	              	font-size: 16px;
  	              }
- 	              /*.sefw-lite .sefw_lite_container table.form-table span.help_tip:before, .sefw-lite .sefw_lite_container #sortable li span.help_tip:before{
+ 	              /*.sefw .wc_se_container table.form-table span.help_tip:before, .sefw .wc_se_container #sortable li span.help_tip:before{
  	              	content: "\f339";
  	              	color: #888;
  	              	font-family: dashicons;
  	              }*/
- 	              .sefw-lite .sefw_lite_container #sortable li span.help_tip{
+ 	              .sefw .wc_se_container #sortable li span.help_tip{
  	              	margin-left: -25px;
  	              	margin-top: 5px;
  	              	font-weight: bold;
  	              	font-size: 16px;
  	              	cursor: help;
  	              }
- 	              .sefw-lite .sefw_lite_container .instruction{
+ 	              .sefw .wc_se_container .instruction{
  	              	margin-left: 25px;
  	              }
- 	              .sefw_lite_container>h4 {
- 	              	background: #fff;
- 	              	color: #333;
- 	              }
  	              </style>
- 	            <div class="sefw_lite_container">
- 	            	<h4>
- 	            	<?php
- 	            	_e("Some features are disabled on the lite version.<br>Find all the detail about Super Emails for WooCommerce on <a href='https://www.woosuperemails.com/' target='_blank'>www.woosuperemails.com</a><br>Get a 25% discount with the coupon code <code>SEFW_launch</code> valid until June 4 2015", 'sefw-lite');
- 	            	?>
- 	            	</h4>
+ 	            <div class="wc_se_container">
  	                <form method="post" action="options.php" enctype="multipart/form-data">
  	                    <input type="hidden" name="current_tab" value="<?php echo $page_name; ?>">
 						<?php
-							settings_fields('sefw_lite_opt_group_' . $page);
-							
+							settings_fields('wc_se_opt_group_' . $page);
+							/*register_setting(
+							    'wc_se_opt_group_' . $page,               // Option group
+							    'sefw_lite_options',                          // Option name
+							    array($this, 'options_validate')            // Sanitize
+							);*/
 	 	                    if ($page == 'general_settings') {
-	 	                    	do_settings_sections('sefw-lite-admin-' . $page_name);
+	 	                    	do_settings_sections('sefw-admin-' . $page_name);
+
 	 	                    }else if ($page == 'products_selection') {
 	 	                ?>
  	                    	<h3>
  	                    	<?php
- 	                    	echo __('Selection sequence', 'sefw-lite');
+ 	                    	echo __('Selection sequence', 'sefw');
  	                    	?>
  	                    	</h3>
  	                    	
  	                    	<p class="instruction">
  	                    	<?php
- 	                    	echo __('Nouveau texte pour version lite', 'sefw-lite');
+ 	                    	echo __('Drag and drop the blocks to define your sequence for the products selection', 'sefw');
  	                    	?>
  	                    	</p>
 
@@ -610,101 +682,129 @@ if (!class_exists('SEFWlite')) {
  	                    		<li>1</li>
  	                    		<li>2</li>
  	                    		<li>3</li>
- 	                    		<li style="opacity:0.3">4</li>
- 	                    		<li style="opacity:0.3">5</li>
+ 	                    		<li>4</li>
+ 	                    		<li>5</li>
  	                    	</ul>
- 	                    	<ul id="sortable">
+ 	                    	<ul id="sortable" style="visibility:hidden">
  	                    	  <li class="" id="up_sells">
  	                    	  	<b>
  	                    	  	<?php
- 	                    	  	echo __('Up-sells', 'sefw-lite');
+ 	                    	  	echo __('Up-sells', 'sefw');
  	                    	  	?>
  	                    	  	</b>
  	                    	  	<p>
- 	                    	  	<?php $this->render_hint( __('Maximum products quantity', 'sefw-lite') ); ?>
+ 	                    	  	<?php $this->render_hint( __('Maximum products quantity', 'sefw') ); ?>
  	                    	  	<select id="upsells_max" class="max">
+ 	                    	  		<option>1</option>
  	                    	  		<option>2</option>
+ 	                    	  		<option>3</option>
+ 	                    	  		<option>4</option>
+ 	                    	  		<option>5</option>
+ 	                    	  		<option>6</option>
+ 	                    	  		<option>7</option>
+ 	                    	  		<option>8</option>
  	                    	  	</select>
  	                    	  	</p>
  	                    	  </li>
  	                    	  <li class="" id="cross_sells">
  	                    	  	<b>
  	                    	  	<?php
- 	                    	  	echo __('Cross-sells', 'sefw-lite');
+ 	                    	  	echo __('Cross-sells', 'sefw');
  	                    	  	?>
  	                    	  	</b>
  	                    	  	<p>
- 	                    	  	<?php $this->render_hint( __('Maximum products quantity', 'sefw-lite') ); ?>
+ 	                    	  	<?php $this->render_hint( __('Maximum products quantity', 'sefw') ); ?>
  	                    	  	<select id="crosssells_max" class="max">
+ 	                    	  		<option>1</option>
  	                    	  		<option>2</option>
+ 	                    	  		<option>3</option>
+ 	                    	  		<option>4</option>
+ 	                    	  		<option>5</option>
+ 	                    	  		<option>6</option>
+ 	                    	  		<option>7</option>
+ 	                    	  		<option>8</option>
  	                    	  	</select>
  	                    	  	</p>
  	                    	  </li>
  	                    	  <li class="" id="related_products">
  	                    	  	<b>
  	                    	  	<?php
- 	                    	  	echo __('Related products', 'sefw-lite');
+ 	                    	  	echo __('Related products', 'sefw');
  	                    	  	?>
  	                    	  	</b>
- 	                    	  	<span class="help_tip" data-tip="<?php echo __('Products sharing the same tags or categories', 'sefw-lite')?>" style="margin-left: 5px;margin-top: 0;">?</span>
+ 	                    	  	<span class="help_tip" data-tip="<?php echo __('Products sharing the same tags or categories', 'sefw')?>" style="margin-left: 5px;margin-top: 0;">?</span>
  	                    	  	<p>
- 	                    	  	<?php $this->render_hint( __('Maximum products quantity', 'sefw-lite') ); ?>
+ 	                    	  	<?php $this->render_hint( __('Maximum products quantity', 'sefw') ); ?>
  	                    	  	<select id="related_max" class="max">
+ 	                    	  		<option>1</option>
  	                    	  		<option>2</option>
+ 	                    	  		<option>3</option>
+ 	                    	  		<option>4</option>
+ 	                    	  		<option>5</option>
+ 	                    	  		<option>6</option>
+ 	                    	  		<option>7</option>
+ 	                    	  		<option>8</option>
  	                    	  	</select>
  	                    	  	</p>
  	                    	  </li>
- 	                    	  <li class="" id="specific_products" style="opacity:0.3">
+ 	                    	  <li class="" id="specific_products">
  	                    	  	<b>
  	                    	  	<?php
- 	                    	  	echo __('Specific products from the shop', 'sefw-lite');
+ 	                    	  	echo __('Specific products from the shop', 'sefw');
  	                    	  	?>
  	                    	  	</b>
- 	                    	  	<p><span class="help_tip" data-tip="<?php echo __('Use the field below to select products', 'sefw-lite')?>" style="margin-top:0">?</span></p>
+ 	                    	  	<p><span class="help_tip" data-tip="<?php echo __('Use the field below to select products', 'sefw')?>" style="margin-top:0">?</span></p>
  	                    	  </li>
- 	                    	  <li class="" id="random_shop" style="opacity:0.3">
+ 	                    	  <li class="" id="random_shop">
  	                    	  	<b>
  	                    	  	<?php
- 	                    	  	echo __('Random products from the shop', 'sefw-lite');
+ 	                    	  	echo __('Random products from the shop', 'sefw');
  	                    	  	?>
  	                    	  	</b>
  	                    	  	<p>
- 	                    	  	<?php $this->render_hint( __('Maximum products quantity', 'sefw-lite') ); ?>
+ 	                    	  	<?php $this->render_hint( __('Maximum products quantity', 'sefw') ); ?>
  	                    	  	<select  id="randomshop_max" class="max">
+ 	                    	  		<option>1</option>
+ 	                    	  		<option>2</option>
+ 	                    	  		<option>3</option>
+ 	                    	  		<option>4</option>
+ 	                    	  		<option>5</option>
+ 	                    	  		<option>6</option>
+ 	                    	  		<option>7</option>
  	                    	  		<option>8</option>
  	                    	  	</select>
  	                    	  	</p>
  	                    	  </li>
  	                    	</ul>
  	                    <?php
- 	                    	do_settings_sections('sefw-lite-admin-' . $page_name);
+ 	                    	do_settings_sections('sefw-admin-' . $page_name);
  	                    	}else if ($page == 'layout') {
-	 	                    	do_settings_sections('sefw-lite-admin-' . $page_name);
+	 	                    	do_settings_sections('sefw-admin-' . $page_name);
  	                		}else if ($page == 'preview') {
-	 	                    	do_settings_sections('sefw-lite-admin-' . $page_name);
+	 	                    	do_settings_sections('sefw-admin-' . $page_name);
 
 	 	                 		echo '<table class="form-table">
 	 	                 				<tbody>
 	 	                 				<tr><th scope="row">';
-	 	                 		echo __('New Order email', 'sefw-lite');
+	 	                 		echo __('New Order email', 'sefw');
 	 	                 		echo '</th><td>';
-		                    	printf('<a href="%s" target="_blank" class="button preview_email">',wp_nonce_url(admin_url('?sefw_lite_preview=processing_order'), 'sefw_lite-preview-mail')
+		                    	printf('<a href="%s" target="_blank" class="button preview_email">',wp_nonce_url(admin_url('?wc_se_preview=processing_order'), 'wc_se-preview-mail')
 	       				 		);
-	       				 		echo __('Preview', 'sefw-lite');
+	       				 		echo __('Preview', 'sefw');
 	       				 		echo '</a>';
 	       				 		echo '</td></tr><tr><th scope="row">';
-	       				 		echo __('Order Complete email', 'sefw-lite');
+	       				 		echo __('Order Complete email', 'sefw');
 	       				 		echo '</th><td>';
-								printf('<a href="%s" target="_blank" class="button preview_email">',wp_nonce_url(admin_url('?sefw_lite_preview=completed_order'), 'sefw_lite-preview-mail')
+								printf('<a href="%s" target="_blank" class="button preview_email">',wp_nonce_url(admin_url('?wc_se_preview=completed_order'), 'wc_se-preview-mail')
 	       				 		);
-	       				 		echo __('Preview', 'sefw-lite');
+	       				 		echo __('Preview', 'sefw');
 	       				 		echo '</a>';
 	       				 		echo '</td></tr><tr><th scope="row">';
-	       				 		echo __('Customer Note email', 'sefw-lite');
+	       				 		echo __('Customer Note email', 'sefw');
 	       				 		echo '</th><td>';
-								printf('<a href="%s" target="_blank" class="button preview_email">',wp_nonce_url(admin_url('?sefw_lite_preview=customer_note'), 'sefw_lite-preview-mail')
+								printf('<a href="%s" target="_blank" class="button preview_email">',wp_nonce_url(admin_url('?wc_se_preview=customer_note'), 'wc_se-preview-mail')
 	       				 		);
-	       				 		echo __('Preview', 'sefw-lite');
+	       				 		echo __('Preview', 'sefw');
 	       				 		echo '</a>';
 	       				 		echo '</td></tr></tbody></table>';
  	                		}
@@ -763,7 +863,11 @@ if (!class_exists('SEFWlite')) {
 
 	 	public function get_settings() {
 	 		
-	        $this->settings = sfew_lite_settings();
+	        $this->settings = sfew_settings();
+	        
+	 		//$this->options = get_option('sefw_lite_options');
+
+	 		//$this->validation = $this->options('validation', true);
 
 	 		// Load some data from config
 	 		$this->hints = $this->options('hint');
@@ -796,7 +900,7 @@ if (!class_exists('SEFWlite')) {
 	 	public function render_options_text($args = array())
 	 	{
 	 	    printf(
-	 	        '<input type="text" id="%s" name="sefw_lite_options[%s]" value="%s" class="sefw-lite-field-width" /> ',
+	 	        '<input type="text" id="%s" name="sefw_lite_options[%s]" value="%s" class="sefw-field-width" /> ',
 	 	        $args['name'],
 	 	        $args['name'],
 	 	        $args['options'][$args['name']]
@@ -814,7 +918,7 @@ if (!class_exists('SEFWlite')) {
 	 	public function render_options_hidden($args = array())
 	 	{
 	 	    printf(
-	 	        '<input type="hidden" id="%s" name="sefw_lite_options[%s]" value="%s" class="sefw-lite-field-width" /> ',
+	 	        '<input type="hidden" id="%s" name="sefw_lite_options[%s]" value="%s" class="sefw-field-width" /> ',
 	 	        $args['name'],
 	 	        $args['name'],
 	 	        $args['options'][$args['name']]
@@ -880,7 +984,7 @@ if (!class_exists('SEFWlite')) {
 	 	public function render_options_textarea($args = array())
 	 	{
 	 	    printf(
-	 	        '<textarea id="%s" name="sefw_lite_options[%s]" class="sefw_lite_textarea">%s</textarea>',
+	 	        '<textarea id="%s" name="sefw_lite_options[%s]" class="wc_se_textarea">%s</textarea>',
 	 	        $args['name'],
 	 	        $args['name'],
 	 	        $args['options'][$args['name']]
@@ -916,7 +1020,7 @@ if (!class_exists('SEFWlite')) {
 	 	public function render_options_dropdown($args = array())
 	 	{
 	 	    printf(
-	 	        '<select id="%s" name="sefw_lite_options[%s]" class="sefw-lite-field-width">',
+	 	        '<select id="%s" name="sefw_lite_options[%s]" class="sefw-field-width">',
 	 	        $args['name'],
 	 	        $args['name']
 	 	    );
@@ -1072,30 +1176,30 @@ if (!class_exists('SEFWlite')) {
 
 	 	    // Display settings updated message
 	 	    add_settings_error(
-	 	        'sefw_lite',
-	 	        'sefw_lite_' . 'settings_updated',
-	 	        __('Your settings have been saved.', 'sefw-lite'),
+	 	        'wc_se',
+	 	        'wc_se_' . 'settings_updated',
+	 	        __('Your settings have been saved.', 'sefw'),
 	 	        'updated'
 	 	    );
 
 	 	    // Display errors
 	 	    foreach ($errors as $error) {
-	 	        $reverted = __('Reverted to a previous value.', 'sefw-lite');
+	 	        $reverted = __('Reverted to a previous value.', 'sefw');
 
 	 	        $messages = array(
-	 	            'number' => __('must be numeric', 'sefw-lite') . '. ' . $reverted,
-	 	            'bool' => __('must be either 0 or 1', 'sefw-lite') . '. ' . $reverted,
-	 	            'option' => __('is not allowed', 'sefw-lite') . '. ' . $reverted,
-	 	            'email' => __('is not a valid email address', 'sefw-lite') . '. ' . $reverted,
-	 	            'url' => __('is not a valid URL', 'sefw-lite') . '. ' . $reverted,
-	 	            'string' => __('is not a valid text string', 'sefw-lite') . '. ' . $reverted,
-	 	            'product' => __('is not a valid product', 'sefw-lite') . '. ' . $reverted,
+	 	            'number' => __('must be numeric', 'sefw') . '. ' . $reverted,
+	 	            'bool' => __('must be either 0 or 1', 'sefw') . '. ' . $reverted,
+	 	            'option' => __('is not allowed', 'sefw') . '. ' . $reverted,
+	 	            'email' => __('is not a valid email address', 'sefw') . '. ' . $reverted,
+	 	            'url' => __('is not a valid URL', 'sefw') . '. ' . $reverted,
+	 	            'string' => __('is not a valid text string', 'sefw') . '. ' . $reverted,
+	 	            'product' => __('is not a valid product', 'sefw') . '. ' . $reverted,
 	 	        );
 
 	 	        add_settings_error(
-	 	            'sefw_lite',
+	 	            'wc_se',
 	 	            $error['code'],
-	 	            __('Value of', 'sefw-lite') . ' "' . $this->titles[$error['setting']] . '" ' . $messages[$error['code']]
+	 	            __('Value of', 'sefw') . ' "' . $this->titles[$error['setting']] . '" ' . $messages[$error['code']]
 	 	        );
 	 	    }
 
@@ -1125,8 +1229,9 @@ if (!class_exists('SEFWlite')) {
 
 	    public function enqueue_scripts()
 	    {
-	    	wp_register_script('sefw_lite', sefw_lite_PLUGIN_URL . '/assets/js/sefw_lite-admin.js', array(), sefw_lite_VERSION);
-	    	wp_enqueue_script('sefw_lite');
+	    	wp_enqueue_script('iris');
+	    	wp_register_script('wc_se', sefw_PLUGIN_URL . '/assets/js/wc_se-admin.js', array('iris'), sefw_VERSION);
+	    	wp_enqueue_script('wc_se');
 	    }
 
 	    public function get_last_valid_order(){
@@ -1146,9 +1251,9 @@ if (!class_exists('SEFWlite')) {
 	    }
 
 	    public function preview_emails() {
-	    	if ( isset( $_GET['sefw_lite_preview'] ) ) {
+	    	if ( isset( $_GET['wc_se_preview'] ) ) {
 	    		
-	    		if ( ! wp_verify_nonce( $_REQUEST['_wpnonce'], 'sefw_lite-preview-mail') ) {
+	    		if ( ! wp_verify_nonce( $_REQUEST['_wpnonce'], 'wc_se-preview-mail') ) {
 	    			die( 'Security check' );
 	    		}
 	    		if ( isset( $_GET['order_id'] ) ) {
@@ -1162,7 +1267,7 @@ if (!class_exists('SEFWlite')) {
 	    		}
 	    		if( $order_id ) {
 	    			$this->email_preview = true;
-		    		switch ($_GET['sefw_lite_preview']) {
+		    		switch ($_GET['wc_se_preview']) {
 		    			
 		    			case 'processing_order':
 
@@ -1188,7 +1293,7 @@ if (!class_exists('SEFWlite')) {
 		    		}
 
 	    		}else{
-	    			echo __('You must have at least one valid order in WooCommerce to preview emails.', 'sefw-lite');
+	    			echo __('You must have at least one valid order in WooCommerce to preview emails.', 'sefw');
 	    		}
 	    		exit;
 	    	}

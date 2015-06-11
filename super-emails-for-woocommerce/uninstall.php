@@ -3,6 +3,6 @@
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) )
 	exit();
 
-delete_option( 'sefw_lite_options' );
+delete_option( 'wc_se_options' );
 
 ?>

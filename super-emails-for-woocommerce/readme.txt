@@ -1,10 +1,10 @@
-=== Super Emails for WooCommerce lite ===
+=== Super Emails for WooCommerce ===
 Contributors: boriscolombier
 Tags: ecommerce, woocommerce, emails, transactional emails, confirmation email, marketing, promote products
 Donate link: http://www.woosuperemails.com/
 Requires at least: 4.0
 Tested up to: 4.2.2
-Stable tag: 1.0
+Stable tag: 2.0
 
 Promote your WooCommerce products on order confirmation emails your customers receive and improve your sells without effort.
 
@@ -15,7 +15,7 @@ As soon as you activate the extension, it will automatically select relative pro
 
 WooCommerce 2.2 minimum required
 
-You can find more information on https://www.woosuperemails.com and get the full version which allows you to precisely select the products you want to promote
+You can find more information on https://www.woosuperemails.com
 
 == Installation ==
 The options submenu is in the WooCommerce menu
@@ -31,6 +31,9 @@ At least, 2.2
 1. Order confirmation email
 
 == Changelog ==
+
+2.0
+Full version
 
 1.1
 Bug fix
